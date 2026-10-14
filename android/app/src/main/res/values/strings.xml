@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">いつもと違う日</string>
+    <string name="title_activity_main">いつもと違う日</string>
+    <string name="package_name">com.bxwcoder.itsumochigau</string>
+    <string name="custom_url_scheme">com.bxwcoder.itsumochigau</string>
+</resources>
