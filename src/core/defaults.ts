@@ -34,6 +34,8 @@ export const createDefaultState = (): AppState => ({
     dayBeforeTime: '21:00',
     weekStartsOn: 1,
     notificationsEnabled: true,
+    notifyMethod: 'calendar',
+    calendarId: 0,
   },
   confirmed: {},
 });

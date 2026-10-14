@@ -68,6 +68,14 @@ export interface Settings {
   /** 週の始まり 0=日曜 1=月曜 */
   weekStartsOn: 0 | 1;
   notificationsEnabled: boolean;
+  /**
+   * calendar: スマホのカレンダーに書き込んで、カレンダーに通知してもらう（アプリを閉じても届く）
+   * app     : このアプリ自身が通知する（機種によってはアプリを閉じると届かない）
+   * both    : 両方
+   */
+  notifyMethod: 'calendar' | 'app' | 'both';
+  /** カレンダーの書き込み先。0 は専用の「いつもと違う日」カレンダー */
+  calendarId: number;
 }
 
 export interface AppState {

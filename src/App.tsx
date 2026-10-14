@@ -4,7 +4,7 @@ import { createDefaultState } from './core/defaults';
 import { toDateStr } from './core/dates';
 import type { AppState, DateStr } from './core/types';
 import { clearState, loadState, saveState } from './lib/storage';
-import { syncNotifications, type SyncResult } from './lib/notify';
+import { EMPTY_SYNC, needsSetup, syncNotifications, type SyncResult } from './lib/notify';
 import { Home } from './ui/Home';
 import { Schedule } from './ui/Schedule';
 import { Items } from './ui/Items';
@@ -27,7 +27,8 @@ const App: React.FC = () => {
   const [tab, setTab] = useState<Tab>('home');
   const [today, setToday] = useState<DateStr>(() => toDateStr(new Date()));
   const [changeDate, setChangeDate] = useState<DateStr | undefined | null>(null);
-  const [syncResult, setSyncResult] = useState<SyncResult>({ count: 0, inexact: false });
+  const [syncResult, setSyncResult] = useState<SyncResult>(EMPTY_SYNC);
+  const [setupNeeded, setSetupNeeded] = useState(false);
   const [toast, setToast] = useState('');
 
   const update = useCallback((fn: (s: AppState) => AppState) => setState(fn), []);
@@ -37,6 +38,7 @@ const App: React.FC = () => {
     saveState(state);
     const timer = setTimeout(() => {
       syncNotifications(state).then(setSyncResult);
+      needsSetup(state).then(setSetupNeeded);
     }, 400);
     return () => clearTimeout(timer);
   }, [state]);
@@ -88,6 +90,15 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-1 w-full max-w-md mx-auto pb-24">
+        {tab === 'home' && setupNeeded && (
+          <div className="mx-4 mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+            <p className="font-bold">お知らせを届けるには、許可が必要です</p>
+            <p className="text-sm text-stone-600 mt-1">「設定」で、カレンダー（または通知）へのアクセスを許可してください。</p>
+            <button onClick={() => setTab('settings')} className="mt-3 bg-teal-700 text-white font-bold rounded-xl px-4 py-2">
+              設定をひらく
+            </button>
+          </div>
+        )}
         {tab === 'home' && <Home state={state} today={today} onOpenChange={(d) => setChangeDate(d)} onConfirm={confirm} />}
         {tab === 'schedule' && <Schedule state={state} today={today} onOpenChange={(d) => setChangeDate(d)} update={update} />}
         {tab === 'items' && <Items state={state} update={update} />}
@@ -96,6 +107,7 @@ const App: React.FC = () => {
           <Settings
             state={state}
             syncResult={syncResult}
+            onSyncResult={setSyncResult}
             update={update}
             onReset={() => {
               clearState();

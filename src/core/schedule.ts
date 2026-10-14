@@ -10,6 +10,8 @@ export interface PlannedNotification {
   at: Date;
   title: string;
   body: string;
+  /** 持ち物・行動の名前 */
+  items: string[];
   alerts: Alert[];
 }
 
@@ -49,6 +51,7 @@ export const planNotifications = (state: AppState, now: Date, days = 60): Planne
       at,
       title: timing === 'sameDay' ? '今日はいつもと違います' : '明日はいつもと違います',
       body: `${reasons.join('\n')}\n${timing === 'sameDay' ? '今日' : '明日'}の持ち物・行動：${items.join('、')}`,
+      items,
       alerts: group,
     });
   }
