@@ -4,7 +4,7 @@ import { createDefaultState } from './core/defaults';
 import { toDateStr } from './core/dates';
 import type { AppState, DateStr } from './core/types';
 import { clearState, loadState, saveState } from './lib/storage';
-import { syncNotifications } from './lib/notify';
+import { syncNotifications, type SyncResult } from './lib/notify';
 import { Home } from './ui/Home';
 import { Schedule } from './ui/Schedule';
 import { Items } from './ui/Items';
@@ -27,7 +27,7 @@ const App: React.FC = () => {
   const [tab, setTab] = useState<Tab>('home');
   const [today, setToday] = useState<DateStr>(() => toDateStr(new Date()));
   const [changeDate, setChangeDate] = useState<DateStr | undefined | null>(null);
-  const [scheduledCount, setScheduledCount] = useState(0);
+  const [syncResult, setSyncResult] = useState<SyncResult>({ count: 0, inexact: false });
   const [toast, setToast] = useState('');
 
   const update = useCallback((fn: (s: AppState) => AppState) => setState(fn), []);
@@ -36,9 +36,7 @@ const App: React.FC = () => {
   useEffect(() => {
     saveState(state);
     const timer = setTimeout(() => {
-      syncNotifications(state)
-        .then(setScheduledCount)
-        .catch((e) => console.error('通知の予約に失敗しました', e));
+      syncNotifications(state).then(setSyncResult);
     }, 400);
     return () => clearTimeout(timer);
   }, [state]);
@@ -97,7 +95,7 @@ const App: React.FC = () => {
         {tab === 'settings' && (
           <Settings
             state={state}
-            scheduledCount={scheduledCount}
+            syncResult={syncResult}
             update={update}
             onReset={() => {
               clearState();

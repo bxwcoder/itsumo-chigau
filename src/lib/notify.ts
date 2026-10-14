@@ -51,22 +51,30 @@ const ensureChannel = async () => {
   channelReady = true;
 };
 
-/**
- * 予約中のお知らせを全部取り消して、今のデータで予約し直す。
- * 予定や設定を変えるたびに呼ぶ。
- */
-export const syncNotifications = async (state: AppState): Promise<number> => {
-  if (!isNativeApp()) return 0;
-  const pending = await LocalNotifications.getPending();
-  if (pending.notifications.length > 0) {
-    await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
-  }
-  if (!state.settings.notificationsEnabled) return 0;
-  if ((await getPermission()) !== 'granted') return 0;
+export interface SyncResult {
+  count: number;
+  /** 時間ぴったりにできず、数分おくれる可能性がある */
+  inexact: boolean;
+  error?: string;
+  /** 通知が予約されなかった理由（オフ・未許可など） */
+  skipped?: string;
+}
 
-  await ensureChannel();
+const doSync = async (state: AppState): Promise<SyncResult> => {
+  const pending = await LocalNotifications.getPending();
+  const ours = pending.notifications.filter((n) => n.id !== TEST_ID);
+  if (ours.length > 0) {
+    await LocalNotifications.cancel({ notifications: ours.map((n) => ({ id: n.id })) });
+  }
+  if (!state.settings.notificationsEnabled) return { count: 0, inexact: false, skipped: 'お知らせがオフです' };
+  if ((await getPermission()) !== 'granted') return { count: 0, inexact: false, skipped: '通知が許可されていません' };
+
   const planned = planNotifications(state, new Date());
-  if (planned.length === 0) return 0;
+  if (planned.length === 0) return { count: 0, inexact: false };
+  // 時間ぴったりの通知がオフだと、プラグインが毎回設定画面を開いてしまうので、
+  // その場合は最初から「数分おくれてもよい」通知として予約する
+  const exact = (await getExactAlarm()) !== false;
+  await ensureChannel();
   await LocalNotifications.schedule({
     notifications: planned.map((p) => ({
       id: p.id,
@@ -75,23 +83,61 @@ export const syncNotifications = async (state: AppState): Promise<number> => {
       largeBody: p.body,
       channelId: CHANNEL_ID,
       schedule: { at: p.at, allowWhileIdle: true },
+      isExactNotification: exact,
     })),
   });
-  return planned.length;
+  return { count: planned.length, inexact: !exact };
 };
 
-/** 通知が届くか試すため、5秒後にテスト通知を出す */
-export const sendTestNotification = async () => {
+let queue: Promise<unknown> = Promise.resolve();
+
+/**
+ * 予約中のお知らせを全部取り消して、今のデータで予約し直す。
+ * 予定や設定を変えるたびに呼ぶ。同時に2回動かないよう、順番に実行する。
+ */
+export const syncNotifications = (state: AppState): Promise<SyncResult> => {
+  if (!isNativeApp()) return Promise.resolve({ count: 0, inexact: false });
+  const run = queue.then(() =>
+    doSync(state).catch((e: unknown) => ({
+      count: 0,
+      inexact: false,
+      error: e instanceof Error ? e.message : String(e),
+    })),
+  );
+  queue = run;
+  return run;
+};
+
+export interface PendingInfo {
+  id: number;
+  title: string;
+  at?: Date;
+}
+
+/** スマホに実際に予約されているお知らせ（確認用） */
+export const listPending = async (): Promise<PendingInfo[]> => {
+  if (!isNativeApp()) return [];
+  const { notifications } = await LocalNotifications.getPending();
+  return notifications
+    .map((n) => ({ id: n.id, title: n.title, at: n.schedule?.at ? new Date(n.schedule.at) : undefined }))
+    .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0));
+};
+
+const TEST_ID = 1;
+
+/** 通知が届くか試すため、指定した秒数後にテスト通知を出す */
+export const sendTestNotification = async (seconds: number) => {
   if (!isNativeApp()) return;
   await ensureChannel();
   await LocalNotifications.schedule({
     notifications: [
       {
-        id: 1,
+        id: TEST_ID,
         title: 'テスト通知',
         body: 'この通知が見えていれば、お知らせは正しく届きます。',
         channelId: CHANNEL_ID,
-        schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true },
+        schedule: { at: new Date(Date.now() + seconds * 1000), allowWhileIdle: true },
+        isExactNotification: (await getExactAlarm()) !== false,
       },
     ],
   });

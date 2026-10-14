@@ -4,16 +4,19 @@ import {
   getExactAlarm,
   getPermission,
   isNativeApp,
+  listPending,
   openExactAlarmSetting,
   requestPermission,
   sendTestNotification,
+  type PendingInfo,
   type PermissionState,
+  type SyncResult,
 } from '../lib/notify';
 import { Card, SectionTitle, SubButton } from './common';
 
 interface Props {
   state: AppState;
-  scheduledCount: number;
+  syncResult: SyncResult;
   update: (fn: (s: AppState) => AppState) => void;
   onReset: () => void;
 }
@@ -25,15 +28,22 @@ const PERMISSION_LABEL: Record<PermissionState, string> = {
   unsupported: 'ブラウザ版のため通知は届きません',
 };
 
-export const Settings: React.FC<Props> = ({ state, scheduledCount, update, onReset }) => {
+export const Settings: React.FC<Props> = ({ state, syncResult, update, onReset }) => {
   const [permission, setPermission] = useState<PermissionState>('unsupported');
   const [exact, setExact] = useState<boolean | null>(null);
   const [message, setMessage] = useState('');
+  const [pending, setPending] = useState<PendingInfo[]>([]);
 
   const refresh = async () => {
     setPermission(await getPermission());
     setExact(await getExactAlarm());
+    setPending(await listPending());
   };
+
+  // 予約し直したら一覧も読み直す
+  useEffect(() => {
+    listPending().then(setPending);
+  }, [syncResult]);
 
   useEffect(() => {
     refresh();
@@ -83,8 +93,37 @@ export const Settings: React.FC<Props> = ({ state, scheduledCount, update, onRes
             className="border border-stone-300 rounded-lg px-2 py-2 bg-white"
           />
         </label>
-        {isNativeApp() && <p className="text-sm text-stone-600">予約中のお知らせ：{scheduledCount} 件（60日先まで）</p>}
       </Card>
+
+      {isNativeApp() && (
+        <>
+          <SectionTitle>予約中のお知らせ（60日先まで）</SectionTitle>
+          <Card className="space-y-2">
+            {syncResult.error && <p className="text-sm font-bold text-rose-700">予約に失敗しました：{syncResult.error}</p>}
+            {syncResult.skipped && <p className="text-sm font-bold text-amber-700">予約していません：{syncResult.skipped}</p>}
+            {syncResult.inexact && syncResult.count > 0 && (
+              <p className="text-sm text-amber-700">「時間ぴったりの通知」がオフのため、数分おくれることがあります。</p>
+            )}
+            {pending.length === 0 ? (
+              <p className="text-stone-500">ありません。</p>
+            ) : (
+              <ul className="divide-y divide-stone-100">
+                {pending.map((p) => (
+                  <li key={p.id} className="py-2 flex justify-between gap-2">
+                    <span className="font-semibold">
+                      {p.at ? p.at.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '日時不明'}
+                    </span>
+                    <span className="text-stone-600 text-sm">{p.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-stone-500">
+              お知らせ時刻をすでに過ぎた分は予約しません。今日のお知らせを試すときは、時刻を先に数分後にしてから予定を変更してください。
+            </p>
+          </Card>
+        </>
+      )}
 
       <SectionTitle>スマホの通知の許可</SectionTitle>
       <Card className="space-y-3">
@@ -110,14 +149,24 @@ export const Settings: React.FC<Props> = ({ state, scheduledCount, update, onRes
           </>
         )}
         {permission === 'granted' && (
-          <SubButton
-            onClick={async () => {
-              await sendTestNotification();
-              setMessage('5秒後にテスト通知が届きます。');
-            }}
-          >
-            テスト通知を送る
-          </SubButton>
+          <div className="flex flex-wrap gap-2">
+            <SubButton
+              onClick={async () => {
+                await sendTestNotification(5);
+                setMessage('5秒後にテスト通知が届きます。');
+              }}
+            >
+              テスト通知（5秒後）
+            </SubButton>
+            <SubButton
+              onClick={async () => {
+                await sendTestNotification(120);
+                setMessage('2分後にテスト通知が届きます。アプリを閉じて（ホームボタンで戻って）、画面を消して待ってください。');
+              }}
+            >
+              テスト通知（2分後）
+            </SubButton>
+          </div>
         )}
         {message && <p className="text-sm text-teal-800">{message}</p>}
       </Card>

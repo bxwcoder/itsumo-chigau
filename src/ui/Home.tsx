@@ -18,6 +18,19 @@ const groupByTiming = (alerts: Alert[]) =>
     .map((timing) => alerts.filter((a) => a.timing === timing))
     .filter((g) => g.length > 0);
 
+/** スマホへのお知らせがいつ来るか（もう過ぎたか）を書いておく */
+const NotifyTimeNote: React.FC<{ state: AppState; sameDay: boolean; done: boolean }> = ({ state, sameDay, done }) => {
+  if (done || !state.settings.notificationsEnabled) return null;
+  const time = sameDay ? state.settings.sameDayTime : state.settings.dayBeforeTime;
+  const now = new Date();
+  const passed = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` >= time;
+  return (
+    <p className="mt-1 text-xs text-stone-500">
+      {passed ? `お知らせ時刻（${time}）を過ぎているため、通知はしません。` : `🔔 ${time} にスマホへお知らせします。`}
+    </p>
+  );
+};
+
 const AlertCard: React.FC<{ state: AppState; alerts: Alert[]; onConfirm: Props['onConfirm'] }> = ({
   state,
   alerts,
@@ -36,6 +49,7 @@ const AlertCard: React.FC<{ state: AppState; alerts: Alert[]; onConfirm: Props['
           {r}
         </p>
       ))}
+      <NotifyTimeNote state={state} sameDay={sameDay} done={done} />
       <p className="mt-3 font-bold">{sameDay ? '今日' : '明日'}の持ち物・行動：</p>
       <ul className="mt-1 space-y-1">
         {items.map((name) => (
