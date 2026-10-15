@@ -14,6 +14,8 @@ export const loadState = (): AppState => {
     const savedChecks: Partial<AppState['settings']['checkReminders']> = saved.settings?.checkReminders ?? {};
     return {
       ...defaults,
+      // 案内ができる前から使っている人は、案内を出さない
+      onboarded: saved.onboarded ?? true,
       ...saved,
       settings: {
         ...defaults.settings,

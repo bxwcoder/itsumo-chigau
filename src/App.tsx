@@ -11,6 +11,7 @@ import { Items } from './ui/Items';
 import { Rules } from './ui/Rules';
 import { Settings } from './ui/Settings';
 import { ChangeSheet } from './ui/ChangeSheet';
+import { Onboarding } from './ui/Onboarding';
 import { Icon, type IconName } from './ui/icons';
 
 type Tab = 'home' | 'schedule' | 'items' | 'rules' | 'settings';
@@ -92,6 +93,19 @@ const App: React.FC = () => {
       return { ...s, confirmed };
     });
 
+  if (!state.onboarded) {
+    return (
+      <Onboarding
+        state={state}
+        today={today}
+        onFinish={(next) => {
+          setState(next);
+          setTab('home');
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-bg text-ink">
       <header className="bg-bg pt-safe sticky top-0 z-20">
@@ -120,6 +134,7 @@ const App: React.FC = () => {
             syncResult={syncResult}
             onSyncResult={setSyncResult}
             update={update}
+            onRestartOnboarding={() => setState((st) => ({ ...st, onboarded: false }))}
             onReset={() => {
               clearState();
               setState(createDefaultState());

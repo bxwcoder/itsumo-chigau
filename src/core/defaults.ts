@@ -43,4 +43,5 @@ export const createDefaultState = (): AppState => ({
     },
   },
   confirmed: {},
+  onboarded: false,
 });

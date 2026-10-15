@@ -63,10 +63,17 @@ export const openExactAlarmSetting = async () => {
 /** お知らせを届けるために、まだ許可が足りないか */
 export const needsSetup = async (state: AppState): Promise<boolean> => {
   if (!isNativeApp() || !state.settings.notificationsEnabled) return false;
-  const method = state.settings.notifyMethod;
-  if (method !== 'app' && (await getCalendarPermission()) !== 'granted') return true;
-  if (method !== 'calendar' && (await getPermission()) !== 'granted') return true;
-  return false;
+  const calendar = (await getCalendarPermission()) === 'granted';
+  const app = (await getPermission()) === 'granted';
+  switch (state.settings.notifyMethod) {
+    case 'calendar':
+      // カレンダーがだめでも、アプリの通知で代わりに知らせられれば OK
+      return !calendar && !app;
+    case 'app':
+      return !app;
+    case 'both':
+      return !calendar || !app;
+  }
 };
 
 // ---------- 予約 ----------
@@ -94,6 +101,8 @@ export interface SyncResult {
   app: MethodResult & { inexact: boolean };
   calendar: MethodResult;
   planned: PlannedNotification[];
+  /** カレンダーが許可されていないので、代わりにアプリの通知で知らせている */
+  fallback: boolean;
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -104,8 +113,12 @@ const toCalendarEvent = (p: PlannedNotification): CalendarEvent => ({
   start: p.at.getTime(),
 });
 
-const syncCalendar = async (state: AppState, planned: PlannedNotification[], extra: CalendarEvent[] = []): Promise<MethodResult> => {
-  const use = state.settings.notificationsEnabled && state.settings.notifyMethod !== 'app';
+const syncCalendar = async (
+  state: AppState,
+  planned: PlannedNotification[],
+  use: boolean,
+  extra: CalendarEvent[] = [],
+): Promise<MethodResult> => {
   if ((await getCalendarPermission()) !== 'granted') {
     return { count: 0, skipped: use ? 'カレンダーへのアクセスが許可されていません' : undefined };
   }
@@ -118,14 +131,14 @@ const syncCalendar = async (state: AppState, planned: PlannedNotification[], ext
   return { count };
 };
 
-const syncApp = async (state: AppState, planned: PlannedNotification[]): Promise<MethodResult & { inexact: boolean }> => {
+const syncApp = async (state: AppState, planned: PlannedNotification[], use: boolean): Promise<MethodResult & { inexact: boolean }> => {
   const pending = await LocalNotifications.getPending();
   const ours = pending.notifications.filter((n) => n.id !== TEST_ID);
   if (ours.length > 0) {
     await LocalNotifications.cancel({ notifications: ours.map((n) => ({ id: n.id })) });
   }
   if (!state.settings.notificationsEnabled) return { count: 0, inexact: false, skipped: 'お知らせがオフです' };
-  if (state.settings.notifyMethod === 'calendar') return { count: 0, inexact: false };
+  if (!use) return { count: 0, inexact: false };
   if ((await getPermission()) !== 'granted') return { count: 0, inexact: false, skipped: '通知が許可されていません' };
   if (planned.length === 0) return { count: 0, inexact: false };
 
@@ -150,14 +163,20 @@ const syncApp = async (state: AppState, planned: PlannedNotification[]): Promise
 
 const doSync = async (state: AppState, extraCalendar: CalendarEvent[] = []): Promise<SyncResult> => {
   const planned = planAll(state, new Date());
+  const { notificationsEnabled, notifyMethod } = state.settings;
+  const calendarGranted = (await getCalendarPermission()) === 'granted';
+  const useCalendar = notificationsEnabled && notifyMethod !== 'app';
+  // カレンダーを選んでいても許可がなければ、代わりにアプリの通知で知らせる
+  const fallback = notificationsEnabled && notifyMethod === 'calendar' && !calendarGranted;
+  const useApp = notificationsEnabled && (notifyMethod !== 'calendar' || fallback);
   const [app, calendar] = await Promise.all([
-    syncApp(state, planned).catch((e) => ({ count: 0, inexact: false, error: errorText(e) })),
-    syncCalendar(state, planned, extraCalendar).catch((e) => ({ count: 0, error: errorText(e) })),
+    syncApp(state, planned, useApp).catch((e) => ({ count: 0, inexact: false, error: errorText(e) })),
+    syncCalendar(state, planned, useCalendar && !fallback, extraCalendar).catch((e) => ({ count: 0, error: errorText(e) })),
   ]);
-  return { app, calendar, planned };
+  return { app, calendar, planned, fallback };
 };
 
-export const EMPTY_SYNC: SyncResult = { app: { count: 0, inexact: false }, calendar: { count: 0 }, planned: [] };
+export const EMPTY_SYNC: SyncResult = { app: { count: 0, inexact: false }, calendar: { count: 0 }, planned: [], fallback: false };
 
 let queue: Promise<unknown> = Promise.resolve();
 const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {

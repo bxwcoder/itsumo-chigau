@@ -99,4 +99,6 @@ export interface AppState {
   settings: Settings;
   /** 「準備した」を押したお知らせのキー */
   confirmed: Record<string, true>;
+  /** 最初の案内を終えたか */
+  onboarded: boolean;
 }

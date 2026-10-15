@@ -17,6 +17,7 @@ import {
   type SyncResult,
 } from '../lib/notify';
 import type { CalendarInfo } from '../lib/calendar';
+import { getDeviceInfo, getReminderApps, guideFor, openAppSettings, type DeviceInfo } from '../lib/device';
 import { Card, SectionTitle, SubButton, fieldClass } from './common';
 
 interface Props {
@@ -25,7 +26,49 @@ interface Props {
   onSyncResult: (r: SyncResult) => void;
   update: (fn: (s: AppState) => AppState) => void;
   onReset: () => void;
+  onRestartOnboarding: () => void;
 }
+
+/** 通知が届かないときの、機種別の案内 */
+const TroubleGuide: React.FC<{ useCalendar: boolean }> = ({ useCalendar }) => {
+  const [device, setDevice] = useState<DeviceInfo | null>(null);
+  const [reminderApps, setReminderApps] = useState<{ packageName: string; label: string }[]>([]);
+  useEffect(() => {
+    getDeviceInfo().then(setDevice).catch(() => undefined);
+    getReminderApps().then(setReminderApps).catch(() => undefined);
+  }, []);
+  const guide = guideFor(device?.maker);
+
+  return (
+    <Card className="space-y-3">
+      <p className="text-sm text-ink-2">
+        スマホの省電力機能が、通知を止めてしまうことがあります。
+        {device && `お使いの機種（${guide.name}）では、次の設定を試してください。`}
+      </p>
+      {useCalendar && reminderApps.length > 0 && (
+        <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
+          <p className="text-sm">
+            カレンダーのお知らせは「<span className="font-bold">{reminderApps.map((a) => a.label).join('」「')}</span>」から届きます。
+            そのアプリの通知がオンか、下の省電力の設定もあわせて確認してください。
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {reminderApps.map((a) => (
+              <SubButton key={a.packageName} onClick={() => openAppSettings(a.packageName)}>
+                {a.label} の設定を開く
+              </SubButton>
+            ))}
+          </div>
+        </div>
+      )}
+      <ol className="list-decimal pl-5 space-y-1 text-sm">
+        {guide.steps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+      <SubButton onClick={() => openAppSettings()}>このアプリの「アプリ情報」を開く</SubButton>
+    </Card>
+  );
+};
 
 const PERMISSION_LABEL: Record<PermissionState, string> = {
   granted: '許可されています',
@@ -60,7 +103,7 @@ const CheckRow: React.FC<{
 const formatAt = (d: Date) =>
   d.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
 
-export const Settings: React.FC<Props> = ({ state, syncResult, onSyncResult, update, onReset }) => {
+export const Settings: React.FC<Props> = ({ state, syncResult, onSyncResult, update, onReset, onRestartOnboarding }) => {
   const [permission, setPermission] = useState<PermissionState>('unsupported');
   const [calendarPermission, setCalendarPermission] = useState<PermissionState>('unsupported');
   const [calendars, setCalendars] = useState<CalendarInfo[]>([]);
@@ -98,7 +141,8 @@ export const Settings: React.FC<Props> = ({ state, syncResult, onSyncResult, upd
   const resync = () => update((s) => ({ ...s }));
   const s = state.settings;
   const useCalendar = s.notifyMethod !== 'app';
-  const useApp = s.notifyMethod !== 'calendar';
+  // カレンダーが許可されていないときは、代わりにアプリの通知を使う
+  const useApp = s.notifyMethod !== 'calendar' || syncResult.fallback;
   const errors = [syncResult.calendar.error, syncResult.app.error].filter(Boolean);
   const skipped = [useCalendar && syncResult.calendar.skipped, useApp && syncResult.app.skipped].filter(Boolean);
 
@@ -224,6 +268,9 @@ export const Settings: React.FC<Props> = ({ state, syncResult, onSyncResult, upd
             <p>
               カレンダーへのアクセス：<span className="font-semibold">{PERMISSION_LABEL[calendarPermission]}</span>
             </p>
+            {syncResult.fallback && (
+              <p className="text-sm text-alert">カレンダーが許可されていないため、代わりにこのアプリの通知で知らせています。</p>
+            )}
             {calendarPermission !== 'granted' && (
               <SubButton
                 onClick={async () => {
@@ -360,6 +407,13 @@ export const Settings: React.FC<Props> = ({ state, syncResult, onSyncResult, upd
         </>
       )}
 
+      {isNativeApp() && (
+        <>
+          <SectionTitle>通知が届かないとき</SectionTitle>
+          <TroubleGuide useCalendar={useCalendar && !syncResult.fallback} />
+        </>
+      )}
+
       <SectionTitle>カレンダーの数え方</SectionTitle>
       <Card>
         <label className="flex items-center justify-between">
@@ -381,6 +435,13 @@ export const Settings: React.FC<Props> = ({ state, syncResult, onSyncResult, upd
       <SectionTitle>データ</SectionTitle>
       <Card>
         <p className="text-sm text-ink-2 mb-3">データはこのスマホの中だけに保存しています。</p>
+        <SubButton
+          className="mb-3"
+          onClick={() => window.confirm('最初の案内をもう一度表示しますか？\n選び直すと、今の予定・持ち物・ルールは置きかわります。') && onRestartOnboarding()}
+        >
+          最初の設定をやり直す
+        </SubButton>
+        <br />
         <SubButton
           onClick={() => window.confirm('すべてのデータを消して、最初の状態に戻しますか？') && onReset()}
           className="text-rose-500 border-rose-400"

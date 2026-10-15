@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // 自作の部品（カレンダーへの書き込み）を登録する
         registerPlugin(CalendarPlugin.class);
+        registerPlugin(DevicePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
