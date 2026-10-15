@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { AppState, Item } from '../core/types';
-import { Card, SectionTitle, SubButton, newId } from './common';
+import { Card, SectionTitle, SubButton, fieldClass, newId } from './common';
 
 interface Props {
   state: AppState;
@@ -33,23 +33,23 @@ export const Items: React.FC<Props> = ({ state, update }) => {
 
   return (
     <div className="p-4">
-      <p className="text-sm text-stone-600 px-1">
+      <p className="text-sm text-ink-2 px-1">
         ここで登録したものを、「ルール」で「いつ必要か」と結びつけます。
       </p>
 
       <SectionTitle>登録した持ち物・行動</SectionTitle>
       <Card className="p-0">
-        {state.items.length === 0 && <p className="p-4 text-stone-500">まだありません。</p>}
-        <ul className="divide-y divide-stone-100">
+        {state.items.length === 0 && <p className="p-4 text-ink-2">まだありません。</p>}
+        <ul className="divide-y divide-line">
           {state.items.map((item) => (
             <li key={item.id} className="flex items-center justify-between px-4 py-3">
               <span>
-                <span className={`text-xs font-semibold rounded px-1.5 py-0.5 mr-2 ${item.kind === 'item' ? 'bg-teal-100 text-teal-800' : 'bg-violet-100 text-violet-800'}`}>
+                <span className={`text-xs font-semibold rounded px-1.5 py-0.5 mr-2 ${item.kind === 'item' ? 'bg-primary-soft text-primary' : 'bg-surface-2 text-ink'}`}>
                   {KIND_LABEL[item.kind]}
                 </span>
                 <span className="text-lg">{item.name}</span>
               </span>
-              <button onClick={() => remove(item)} className="text-stone-500 px-2 py-1" aria-label={`${item.name}を消す`}>
+              <button onClick={() => remove(item)} className="text-ink-2 px-2 py-1" aria-label={`${item.name}を消す`}>
                 消す
               </button>
             </li>
@@ -64,7 +64,7 @@ export const Items: React.FC<Props> = ({ state, update }) => {
             <button
               key={k}
               onClick={() => setKind(k)}
-              className={`flex-1 py-2 rounded-xl border font-semibold ${kind === k ? 'bg-teal-700 text-white border-teal-700' : 'bg-white border-stone-300'}`}
+              className={`flex-1 py-2 rounded-full border font-semibold ${kind === k ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-line'}`}
             >
               {KIND_LABEL[k]}
             </button>
@@ -76,7 +76,7 @@ export const Items: React.FC<Props> = ({ state, update }) => {
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
             placeholder={kind === 'item' ? '例：弁当、体操服、診察券' : '例：洗濯する、荷物を準備する'}
-            className="flex-1 border border-stone-300 rounded-lg px-3 py-2 min-w-0"
+            className={`flex-1 ${fieldClass} min-w-0`}
           />
           <SubButton onClick={add}>追加</SubButton>
         </div>

@@ -3,7 +3,7 @@ import { baseTypeOn, actualTypeOn, computeAlerts } from '../core/engine';
 import { itemNames } from '../core/schedule';
 import { addDays, formatJa } from '../core/dates';
 import type { AppState, DateStr } from '../core/types';
-import { PrimaryButton, Sheet, colorClass } from './common';
+import { PrimaryButton, Sheet, chipClass, colorClass, fieldClass } from './common';
 
 interface Props {
   state: AppState;
@@ -57,7 +57,7 @@ export const ChangeSheet: React.FC<Props> = ({ state, today, initialDate, onSave
           <button
             key={label}
             onClick={() => changeDate(d)}
-            className={`px-4 py-2 rounded-xl border font-semibold ${date === d ? 'bg-teal-700 text-white border-teal-700' : 'bg-white border-stone-300'}`}
+            className={chipClass(date === d)}
           >
             {label}
           </button>
@@ -66,14 +66,14 @@ export const ChangeSheet: React.FC<Props> = ({ state, today, initialDate, onSave
           type="date"
           value={date}
           onChange={(e) => e.target.value && changeDate(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-stone-300 bg-white"
+          className={`${fieldClass}`}
           aria-label="日付を選ぶ"
         />
       </div>
-      <p className="mt-2 text-stone-600">
+      <p className="mt-2 text-ink-2">
         {formatJa(date)}　いつもの予定：<span className="font-semibold">{state.types.find((t) => t.id === usual)?.name}</span>
         {current !== usual && (
-          <span className="ml-2 text-amber-700 font-semibold">
+          <span className="ml-2 text-alert font-semibold">
             （いまは「{state.types.find((t) => t.id === current)?.name}」に変更中）
           </span>
         )}
@@ -85,7 +85,7 @@ export const ChangeSheet: React.FC<Props> = ({ state, today, initialDate, onSave
           <button
             key={t.id}
             onClick={() => setTypeId(t.id)}
-            className={`py-3 rounded-xl border-2 font-bold ${colorClass(t.color)} ${typeId === t.id ? 'ring-4 ring-teal-600/40 border-teal-700' : ''}`}
+            className={`py-3 rounded-2xl border-2 font-bold ${colorClass(t.color)} ${typeId === t.id ? 'ring-4 ring-primary/40 border-primary' : ''}`}
           >
             {t.name}
             {t.id === usual && <span className="block text-[11px] font-normal">いつもの予定</span>}
@@ -94,15 +94,15 @@ export const ChangeSheet: React.FC<Props> = ({ state, today, initialDate, onSave
       </div>
 
       {preview && (
-        <div className="mt-5 rounded-xl bg-white border border-stone-200 p-3 text-sm">
+        <div className="mt-5 rounded-2xl bg-surface border border-line p-3 text-sm">
           <p className="font-bold mb-1">この変更でこうなります</p>
-          {preview.added.length === 0 && preview.removedCount === 0 && <p className="text-stone-600">お知らせの変化はありません。</p>}
+          {preview.added.length === 0 && preview.removedCount === 0 && <p className="text-ink-2">お知らせの変化はありません。</p>}
           {preview.added.map((a) => (
             <p key={`${a.ruleId}|${a.targetDate}`}>
               🔔 {formatJa(a.targetDate)}は{a.conditionLabel}：{itemNames(state, a.itemIds).join('、')}
             </p>
           ))}
-          {preview.removedCount > 0 && <p className="text-stone-600">いままでのお知らせ {preview.removedCount} 件が不要になります。</p>}
+          {preview.removedCount > 0 && <p className="text-ink-2">いままでのお知らせ {preview.removedCount} 件が不要になります。</p>}
         </div>
       )}
 

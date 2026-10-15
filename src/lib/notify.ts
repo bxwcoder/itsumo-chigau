@@ -4,7 +4,7 @@
 // ブラウザで動かしているときは何もしない（画面の表示だけで確認する）。
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { planNotifications, type PlannedNotification } from '../core/schedule';
+import { planAll, type PlannedNotification } from '../core/schedule';
 import type { AppState } from '../core/types';
 import { ItsumoCalendar, type CalendarEvent, type CalendarInfo } from './calendar';
 
@@ -99,7 +99,7 @@ export interface SyncResult {
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const toCalendarEvent = (p: PlannedNotification): CalendarEvent => ({
-  title: `🔔 ${p.items.join('・')}（いつもと違う日）`,
+  title: p.kind === 'check' ? `📝 ${p.title}（いつもと違う日）` : `🔔 ${p.items.join('・')}（いつもと違う日）`,
   description: `${p.title}\n${p.body}`,
   start: p.at.getTime(),
 });
@@ -142,13 +142,14 @@ const syncApp = async (state: AppState, planned: PlannedNotification[]): Promise
       channelId: CHANNEL_ID,
       schedule: { at: p.at, allowWhileIdle: true },
       isExactNotification: exact,
+      extra: { kind: p.kind },
     })),
   });
   return { count: planned.length, inexact: !exact };
 };
 
 const doSync = async (state: AppState, extraCalendar: CalendarEvent[] = []): Promise<SyncResult> => {
-  const planned = planNotifications(state, new Date());
+  const planned = planAll(state, new Date());
   const [app, calendar] = await Promise.all([
     syncApp(state, planned).catch((e) => ({ count: 0, inexact: false, error: errorText(e) })),
     syncCalendar(state, planned, extraCalendar).catch((e) => ({ count: 0, error: errorText(e) })),
@@ -205,3 +206,15 @@ export const sendCalendarTest = (state: AppState): Promise<SyncResult> =>
       },
     ]),
   );
+
+/** アプリの通知を押してアプリが開いたとき（確認のお知らせなら予定変更を開くため） */
+export const onNotificationTapped = (handler: (kind: PlannedNotification['kind']) => void) => {
+  if (!isNativeApp()) return () => undefined;
+  const sub = LocalNotifications.addListener('localNotificationActionPerformed', (e) => {
+    const kind = e.notification.extra?.kind;
+    if (kind === 'check' || kind === 'alert') handler(kind);
+  });
+  return () => {
+    sub.then((h) => h.remove());
+  };
+};

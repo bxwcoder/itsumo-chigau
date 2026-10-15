@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { actualTypeOn, baseTypeOn } from '../core/engine';
 import { addDays, parseDate, startOfWeek, toDateStr, WEEKDAY_NAMES, weekdayOf } from '../core/dates';
 import type { AppState, DateStr, SchedulePattern } from '../core/types';
-import { Card, SectionTitle, SubButton, TYPE_COLORS, TypeBadge, colorClass, newId } from './common';
+import { Card, SectionTitle, SubButton, TYPE_COLORS, TypeBadge, colorClass, fieldClass, newId } from './common';
 
 interface Props {
   state: AppState;
@@ -21,7 +21,7 @@ const TypeSelect: React.FC<{ state: AppState; value: string; onChange: (id: stri
     aria-label={label}
     value={value}
     onChange={(e) => onChange(e.target.value)}
-    className="border border-stone-300 rounded-lg px-2 py-2 bg-white"
+    className={`${fieldClass}`}
   >
     {state.types.map((t) => (
       <option key={t.id} value={t.id}>
@@ -44,19 +44,19 @@ const MonthCalendar: React.FC<Omit<Props, 'update'>> = ({ state, today, onOpenCh
   return (
     <Card className="p-2">
       <div className="flex items-center justify-between px-1 mb-2">
-        <button onClick={() => moveMonth(-1)} className="w-10 h-10 rounded-full active:bg-stone-100 text-xl" aria-label="前の月">
+        <button onClick={() => moveMonth(-1)} className="w-10 h-10 rounded-full active:bg-surface-2 text-xl" aria-label="前の月">
           ‹
         </button>
         <p className="font-bold text-lg">
           {first.getFullYear()}年{first.getMonth() + 1}月
         </p>
-        <button onClick={() => moveMonth(1)} className="w-10 h-10 rounded-full active:bg-stone-100 text-xl" aria-label="次の月">
+        <button onClick={() => moveMonth(1)} className="w-10 h-10 rounded-full active:bg-surface-2 text-xl" aria-label="次の月">
           ›
         </button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
         {headers.map((h) => (
-          <div key={h} className="text-xs text-stone-500">
+          <div key={h} className="text-xs text-ink-2">
             {h}
           </div>
         ))}
@@ -68,18 +68,18 @@ const MonthCalendar: React.FC<Omit<Props, 'update'>> = ({ state, today, onOpenCh
             <button
               key={d}
               onClick={() => onOpenChange(d)}
-              className={`rounded-lg py-1 min-h-14 ${inMonth ? '' : 'opacity-35'} ${d === today ? 'ring-2 ring-teal-600' : ''} ${changed ? 'bg-amber-50' : ''}`}
+              className={`rounded-lg py-1 min-h-14 ${inMonth ? '' : 'opacity-35'} ${d === today ? 'ring-2 ring-primary' : ''} ${changed ? 'bg-alert-soft' : ''}`}
             >
-              <div className={`text-sm ${weekday === 0 ? 'text-rose-600' : weekday === 6 ? 'text-sky-700' : ''}`}>
+              <div className={`text-sm ${weekday === 0 ? 'text-rose-500' : weekday === 6 ? 'text-sky-500' : ''}`}>
                 {Number(d.slice(8))}
               </div>
               <TypeBadge state={state} typeId={actualTypeOn(state, d)} small />
-              <div className="h-3 text-[9px] font-bold text-amber-700 leading-3">{changed ? '変更' : ''}</div>
+              <div className="h-3 text-[9px] font-bold text-alert leading-3">{changed ? '変更' : ''}</div>
             </button>
           );
         })}
       </div>
-      <p className="text-xs text-stone-500 mt-2 px-1">日付をタップすると、その日の予定を変更できます。翌月分もまとめて登録できます。</p>
+      <p className="text-xs text-ink-2 mt-2 px-1">日付をタップすると、その日の予定を変更できます。翌月分もまとめて登録できます。</p>
     </Card>
   );
 };
@@ -108,7 +108,7 @@ const PatternEditor: React.FC<Pick<Props, 'state' | 'today' | 'update'>> = ({ st
               if (kind === 'weekly') setPattern({ kind: 'weekly', byWeekday: Array.from({ length: 7 }, (_, w) => (w === 0 || w === 6 ? off : work)) });
               else setPattern({ kind: 'cycle', cycle: [work, work, off], startDate: today });
             }}
-            className={`flex-1 py-2 rounded-xl border font-semibold ${pattern.kind === kind ? 'bg-teal-700 text-white border-teal-700' : 'bg-white border-stone-300'}`}
+            className={`flex-1 py-2 rounded-full border font-semibold ${pattern.kind === kind ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-line'}`}
           >
             {label}
           </button>
@@ -131,14 +131,14 @@ const PatternEditor: React.FC<Pick<Props, 'state' | 'today' | 'update'>> = ({ st
         </div>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm text-stone-600">「開始日」から、下の順番をくり返します。</p>
+          <p className="text-sm text-ink-2">「開始日」から、下の順番をくり返します。</p>
           <label className="flex items-center justify-between">
             <span className="font-semibold">開始日（1日目）</span>
             <input
               type="date"
               value={pattern.startDate}
               onChange={(e) => e.target.value && setPattern({ ...pattern, startDate: e.target.value })}
-              className="border border-stone-300 rounded-lg px-2 py-2 bg-white"
+              className={`${fieldClass}`}
             />
           </label>
           {pattern.cycle.map((id, i) => (
@@ -153,7 +153,7 @@ const PatternEditor: React.FC<Pick<Props, 'state' | 'today' | 'update'>> = ({ st
               <button
                 disabled={pattern.cycle.length <= 1}
                 onClick={() => setPattern({ ...pattern, cycle: pattern.cycle.filter((_, j) => j !== i) })}
-                className="text-stone-500 px-2 disabled:opacity-30"
+                className="text-ink-2 px-2 disabled:opacity-30"
                 aria-label={`${i + 1}日目を消す`}
               >
                 消す
@@ -193,7 +193,7 @@ const TypesEditor: React.FC<Pick<Props, 'state' | 'update'>> = ({ state, update 
             {!inUse(t.id) && (
               <button
                 onClick={() => update((s) => ({ ...s, types: s.types.filter((x) => x.id !== t.id) }))}
-                className="ml-1 text-stone-500"
+                className="ml-1 text-ink-2"
                 aria-label={`${t.name}を消す`}
               >
                 ×
@@ -207,11 +207,11 @@ const TypesEditor: React.FC<Pick<Props, 'state' | 'update'>> = ({ state, update 
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="例：学校、病院、出張"
-          className="flex-1 border border-stone-300 rounded-lg px-3 py-2 min-w-0"
+          className={`flex-1 ${fieldClass} min-w-0`}
         />
         <SubButton onClick={add}>追加</SubButton>
       </div>
-      <p className="text-xs text-stone-500 mt-2">使っている種類は消せません（×が出ません）。</p>
+      <p className="text-xs text-ink-2 mt-2">使っている種類は消せません（×が出ません）。</p>
     </Card>
   );
 };

@@ -11,7 +11,16 @@ export const loadState = (): AppState => {
     if (!raw) return defaults;
     const saved = JSON.parse(raw) as Partial<AppState>;
     // 新しい設定項目が増えても壊れないよう、足りない部分は初期値で埋める
-    return { ...defaults, ...saved, settings: { ...defaults.settings, ...saved.settings } };
+    const savedChecks: Partial<AppState['settings']['checkReminders']> = saved.settings?.checkReminders ?? {};
+    return {
+      ...defaults,
+      ...saved,
+      settings: {
+        ...defaults.settings,
+        ...saved.settings,
+        checkReminders: { ...defaults.settings.checkReminders, ...savedChecks },
+      },
+    };
   } catch {
     return defaults;
   }

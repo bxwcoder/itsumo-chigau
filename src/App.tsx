@@ -1,25 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { baseTypeOn, confirmKey, type Alert } from './core/engine';
 import { createDefaultState } from './core/defaults';
-import { toDateStr } from './core/dates';
+import { addDays, toDateStr } from './core/dates';
 import type { AppState, DateStr } from './core/types';
 import { clearState, loadState, saveState } from './lib/storage';
-import { EMPTY_SYNC, needsSetup, syncNotifications, type SyncResult } from './lib/notify';
+import { EMPTY_SYNC, needsSetup, onNotificationTapped, syncNotifications, type SyncResult } from './lib/notify';
 import { Home } from './ui/Home';
 import { Schedule } from './ui/Schedule';
 import { Items } from './ui/Items';
 import { Rules } from './ui/Rules';
 import { Settings } from './ui/Settings';
 import { ChangeSheet } from './ui/ChangeSheet';
+import { Icon, type IconName } from './ui/icons';
 
 type Tab = 'home' | 'schedule' | 'items' | 'rules' | 'settings';
 
-const TABS: [Tab, string, string][] = [
-  ['home', 'ホーム', '🏠'],
-  ['schedule', '予定', '📅'],
-  ['items', '持ち物', '🎒'],
-  ['rules', 'ルール', '🔁'],
-  ['settings', '設定', '⚙️'],
+const TABS: [Tab, string, IconName][] = [
+  ['home', 'ホーム', 'home'],
+  ['schedule', '予定', 'calendar'],
+  ['items', '持ち物', 'list'],
+  ['rules', 'ルール', 'rule'],
+  ['settings', '設定', 'tune'],
 ];
 
 const App: React.FC = () => {
@@ -54,6 +55,16 @@ const App: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
+  // 「予定の変更はありませんか？」の通知を押したら、すぐ予定変更を開く
+  useEffect(
+    () =>
+      onNotificationTapped((kind) => {
+        setTab('home');
+        if (kind === 'check') setChangeDate(addDays(toDateStr(new Date()), 1));
+      }),
+    [],
+  );
+
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(''), 2500);
@@ -82,19 +93,19 @@ const App: React.FC = () => {
     });
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-teal-700 text-white pt-safe sticky top-0 z-20 shadow">
-        <h1 className="max-w-md mx-auto h-12 flex items-center justify-center font-bold">
+    <div className="min-h-screen flex flex-col bg-bg text-ink">
+      <header className="bg-bg pt-safe sticky top-0 z-20">
+        <h1 className="max-w-md mx-auto h-14 px-5 flex items-center text-lg font-bold">
           {tab === 'home' ? 'いつもと違う日' : TABS.find((t) => t[0] === tab)![1]}
         </h1>
       </header>
 
-      <main className="flex-1 w-full max-w-md mx-auto pb-24">
+      <main className="flex-1 w-full max-w-md mx-auto pb-40">
         {tab === 'home' && setupNeeded && (
-          <div className="mx-4 mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <div className="mx-4 mb-2 rounded-3xl border border-alert-line bg-alert-soft p-4">
             <p className="font-bold">お知らせを届けるには、許可が必要です</p>
-            <p className="text-sm text-stone-600 mt-1">「設定」で、カレンダー（または通知）へのアクセスを許可してください。</p>
-            <button onClick={() => setTab('settings')} className="mt-3 bg-teal-700 text-white font-bold rounded-xl px-4 py-2">
+            <p className="text-sm text-ink-2 mt-1">「設定」で、カレンダー（または通知）へのアクセスを許可してください。</p>
+            <button onClick={() => setTab('settings')} className="mt-3 bg-primary text-on-primary font-bold rounded-full px-5 py-2">
               設定をひらく
             </button>
           </div>
@@ -118,17 +129,27 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <nav className="fixed bottom-0 inset-x-0 z-20 bg-white border-t border-stone-200 pb-safe">
-        <div className="max-w-md mx-auto grid grid-cols-5">
+      {tab === 'home' && (
+        <button
+          onClick={() => setChangeDate(undefined)}
+          className="fixed z-20 right-4 bottom-24 flex items-center gap-2 rounded-2xl bg-primary text-on-primary pl-4 pr-5 h-14 text-base font-bold shadow-lg active:opacity-90"
+        >
+          <Icon name="add" className="w-6 h-6" />
+          予定変更
+        </button>
+      )}
+
+      <nav className="fixed bottom-0 inset-x-0 z-20 bg-surface-2 pb-safe">
+        <div className="max-w-md mx-auto grid grid-cols-5 pt-3 pb-4">
           {TABS.map(([id, label, icon]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`py-2 flex flex-col items-center text-xs font-semibold ${tab === id ? 'text-teal-700' : 'text-stone-500'}`}
+              className={`flex flex-col items-center gap-1 text-xs font-semibold ${tab === id ? 'text-ink' : 'text-ink-2'}`}
               aria-current={tab === id ? 'page' : undefined}
             >
-              <span className="text-xl leading-6" aria-hidden>
-                {icon}
+              <span className={`w-16 h-8 rounded-full flex items-center justify-center ${tab === id ? 'bg-primary-soft text-primary' : ''}`}>
+                <Icon name={icon} />
               </span>
               {label}
             </button>
@@ -141,8 +162,8 @@ const App: React.FC = () => {
       )}
 
       {toast && (
-        <div className="fixed bottom-24 inset-x-0 z-40 flex justify-center pointer-events-none">
-          <div className="bg-stone-800 text-white rounded-full px-4 py-2 shadow-lg">{toast}</div>
+        <div className="fixed bottom-40 inset-x-0 z-40 flex justify-center pointer-events-none">
+          <div className="bg-ink text-bg rounded-full px-4 py-2 shadow-lg">{toast}</div>
         </div>
       )}
     </div>

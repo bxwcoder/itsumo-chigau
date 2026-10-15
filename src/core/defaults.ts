@@ -36,6 +36,11 @@ export const createDefaultState = (): AppState => ({
     notificationsEnabled: true,
     notifyMethod: 'calendar',
     calendarId: 0,
+    checkReminders: {
+      daily: { enabled: false, time: '20:00' },
+      weekly: { enabled: false, weekday: 1, time: '07:00' },
+      monthly: { enabled: false, day: 1, time: '20:00' },
+    },
   },
   confirmed: {},
 });

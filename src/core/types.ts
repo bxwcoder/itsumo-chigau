@@ -76,6 +76,17 @@ export interface Settings {
   notifyMethod: 'calendar' | 'app' | 'both';
   /** カレンダーの書き込み先。0 は専用の「いつもと違う日」カレンダー */
   calendarId: number;
+  /** 入力わすれ防止：「予定の変更はありませんか？」と聞くお知らせ */
+  checkReminders: CheckReminders;
+}
+
+export interface CheckReminders {
+  /** 毎日「明日は予定の変更はありませんか？」 */
+  daily: { enabled: boolean; time: string };
+  /** 毎週「今週は予定の変更はありませんか？」 weekday: 0=日曜 ... 6=土曜 */
+  weekly: { enabled: boolean; weekday: number; time: string };
+  /** 毎月「今月は予定の変更はありませんか？」 day: 1〜28、0 は月末 */
+  monthly: { enabled: boolean; day: number; time: string };
 }
 
 export interface AppState {

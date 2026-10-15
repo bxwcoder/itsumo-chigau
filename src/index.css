@@ -1,15 +1,60 @@
 @import "tailwindcss";
 
+/*
+ * 色はここでまとめて決める（ダークモードでは下で上書き）。
+ * 方針：普段は静かな色だけ。「いつもと違う」はアンバー、「準備できた」は緑。
+ */
+@theme {
+  --color-bg: #f4f6f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #eceff1;
+  --color-line: #dfe3e6;
+  --color-ink: #1a1f23;
+  --color-ink-2: #5d6870;
+  --color-primary: #0f766e;
+  --color-on-primary: #ffffff;
+  --color-primary-soft: #d5ede9;
+  --color-alert: #9a4d00;
+  --color-alert-strong: #e07b00;
+  --color-alert-soft: #fff3df;
+  --color-alert-line: #f3c27a;
+  --color-ok: #17803d;
+  --color-ok-soft: #e2f3e7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0e1316;
+    --color-surface: #171d21;
+    --color-surface-2: #20282d;
+    --color-line: #2c363c;
+    --color-ink: #e5eaed;
+    --color-ink-2: #9aa6ae;
+    --color-primary: #5cc6b8;
+    --color-on-primary: #052b27;
+    --color-primary-soft: #16403b;
+    --color-alert: #ffc46b;
+    --color-alert-strong: #ffad33;
+    --color-alert-soft: #2d2212;
+    --color-alert-line: #6a4c1c;
+    --color-ok: #74d896;
+    --color-ok-soft: #15301f;
+  }
+}
+
 :root {
+  color-scheme: light dark;
   font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
-  background: #f5f5f4;
-  color: #1c1917;
+  background: var(--color-bg);
+  color: var(--color-ink);
 }
 
 .pt-safe { padding-top: env(safe-area-inset-top); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+input, select, textarea { color: inherit; font: inherit; }

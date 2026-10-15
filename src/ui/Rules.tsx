@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { describeCondition } from '../core/engine';
 import { itemNames } from '../core/schedule';
 import type { AppState, Rule } from '../core/types';
-import { Card, PrimaryButton, SectionTitle, Sheet, SubButton, newId } from './common';
+import { Card, PrimaryButton, SectionTitle, Sheet, SubButton, chipClass, newId } from './common';
 
 interface Props {
   state: AppState;
@@ -28,25 +28,22 @@ const RuleForm: React.FC<{ state: AppState; initial: Rule; onSave: (r: Rule) => 
 }) => {
   const [rule, setRule] = useState<Rule>(initial);
   const valid = rule.condition.typeIds.length > 0 && rule.itemIds.length > 0;
-  const chip = (active: boolean) =>
-    `px-3 py-2 rounded-xl border font-semibold ${active ? 'bg-teal-700 text-white border-teal-700' : 'bg-white border-stone-300'}`;
-
   return (
     <Sheet title="ルール" onClose={onClose}>
       <p className="font-bold mb-2">① いつ？</p>
       <div className="flex gap-2 flex-wrap">
         {CONDITION_OPTIONS.map(([kind, label]) => (
-          <button key={kind} className={chip(rule.condition.kind === kind)} onClick={() => setRule({ ...rule, condition: { ...rule.condition, kind } })}>
+          <button key={kind} className={chipClass(rule.condition.kind === kind)} onClick={() => setRule({ ...rule, condition: { ...rule.condition, kind } })}>
             {label}
           </button>
         ))}
       </div>
-      <p className="text-sm text-stone-600 mt-3 mb-2">どの予定の日？（いくつでも選べます）</p>
+      <p className="text-sm text-ink-2 mt-3 mb-2">どの予定の日？（いくつでも選べます）</p>
       <div className="flex gap-2 flex-wrap">
         {state.types.map((t) => (
           <button
             key={t.id}
-            className={chip(rule.condition.typeIds.includes(t.id))}
+            className={chipClass(rule.condition.typeIds.includes(t.id))}
             onClick={() => setRule({ ...rule, condition: { ...rule.condition, typeIds: toggle(rule.condition.typeIds, t.id) } })}
           >
             {t.name}
@@ -56,11 +53,11 @@ const RuleForm: React.FC<{ state: AppState; initial: Rule; onSave: (r: Rule) => 
 
       <p className="font-bold mt-5 mb-2">② 何が必要？</p>
       {state.items.length === 0 ? (
-        <p className="text-stone-500 text-sm">先に「持ち物」画面で登録してください。</p>
+        <p className="text-ink-2 text-sm">先に「持ち物」画面で登録してください。</p>
       ) : (
         <div className="flex gap-2 flex-wrap">
           {state.items.map((i) => (
-            <button key={i.id} className={chip(rule.itemIds.includes(i.id))} onClick={() => setRule({ ...rule, itemIds: toggle(rule.itemIds, i.id) })}>
+            <button key={i.id} className={chipClass(rule.itemIds.includes(i.id))} onClick={() => setRule({ ...rule, itemIds: toggle(rule.itemIds, i.id) })}>
               {i.name}
             </button>
           ))}
@@ -70,15 +67,15 @@ const RuleForm: React.FC<{ state: AppState; initial: Rule; onSave: (r: Rule) => 
       <p className="font-bold mt-5 mb-2">③ いつ知らせる？</p>
       <div className="flex flex-col gap-2">
         {(['sameDay', 'dayBefore'] as const).map((t) => (
-          <button key={t} className={`${chip(rule.timing === t)} text-left`} onClick={() => setRule({ ...rule, timing: t })}>
+          <button key={t} className={`${chipClass(rule.timing === t)} text-left`} onClick={() => setRule({ ...rule, timing: t })}>
             {timingLabel(state, t)}
           </button>
         ))}
       </div>
-      <p className="text-xs text-stone-500 mt-2">時刻は「設定」画面で変えられます。</p>
+      <p className="text-xs text-ink-2 mt-2">時刻は「設定」画面で変えられます。</p>
 
-      <div className="mt-5 rounded-xl bg-white border border-stone-200 p-3">
-        <p className="text-sm text-stone-500">このルールの意味</p>
+      <div className="mt-5 rounded-2xl bg-surface border border-line p-3">
+        <p className="text-sm text-ink-2">このルールの意味</p>
         <p className="font-bold">
           {valid ? `${describeCondition(state, rule)}に、${itemNames(state, rule.itemIds).join('・')}が必要` : '①と②を選んでください'}
         </p>
@@ -109,7 +106,7 @@ export const Rules: React.FC<Props> = ({ state, update }) => {
 
   return (
     <div className="p-4">
-      <p className="text-sm text-stone-600 px-1">
+      <p className="text-sm text-ink-2 px-1">
         曜日ではなく「条件」で決めます。予定が変わって条件に合う日がずれたときだけ、お知らせします。
       </p>
 
@@ -117,7 +114,7 @@ export const Rules: React.FC<Props> = ({ state, update }) => {
       <div className="space-y-2">
         {state.rules.length === 0 && (
           <Card>
-            <p className="text-stone-500">まだありません。</p>
+            <p className="text-ink-2">まだありません。</p>
           </Card>
         )}
         {state.rules.map((rule) => (
@@ -127,7 +124,7 @@ export const Rules: React.FC<Props> = ({ state, update }) => {
               <br />
               {itemNames(state, rule.itemIds).join('・') || '（持ち物なし）'}が必要
             </p>
-            <p className="text-sm text-stone-600 mt-1">{timingLabel(state, rule.timing)}</p>
+            <p className="text-sm text-ink-2 mt-1">{timingLabel(state, rule.timing)}</p>
             <div className="flex gap-2 mt-3">
               <SubButton onClick={() => setEditing(rule)}>編集</SubButton>
               <SubButton onClick={() => update((s) => ({ ...s, rules: s.rules.map((r) => (r.id === rule.id ? { ...r, enabled: !r.enabled } : r)) }))}>
