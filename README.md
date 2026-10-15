@@ -33,7 +33,6 @@
 ## 開発のしかた
 
 ```bash
-cd itsumo-chigau
 npm install
 npm test          # 計算のテスト
 npm run dev       # ブラウザで画面を確認（ブラウザでは通知は届きません）
@@ -41,8 +40,8 @@ npm run dev       # ブラウザで画面を確認（ブラウザでは通知は
 
 ## Android に入れる方法
 
-1. `itsumo-chigau/` を変更して GitHub に push すると、GitHub Actions が自動で APK を作ります
-2. GitHub のリポジトリ →「Actions」→「いつもと違う日 Android APK」→ 最新の実行 → 下の「Artifacts」から `itsumo-chigau-debug-apk` をダウンロード（zip を開くと `app-debug.apk`）
+1. GitHub に push すると、GitHub Actions が自動で APK を作ります
+2. GitHub のリポジトリ →「Actions」→「Android APK」→ 最新の実行 → 下の「Artifacts」から `itsumo-chigau-debug-apk` をダウンロード（zip を開くと `app-debug.apk`）
 3. スマホに APK を移して開き、インストール（「提供元不明のアプリ」の許可を求められたら許可）
 4. 起動後「設定」→「通知を許可する」→「テスト通知を送る」で通知が届くか確認
 

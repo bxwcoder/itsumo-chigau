@@ -1,0 +1,38 @@
+# 「いつもと違う日」アプリの Android 用インストールファイル（APK）を作る
+name: Android APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - name: 計算のテスト
+        run: npm test
+      - name: 画面のビルドと Android への反映
+        run: npm run android:sync
+      - name: APK を作る
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: itsumo-chigau-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
