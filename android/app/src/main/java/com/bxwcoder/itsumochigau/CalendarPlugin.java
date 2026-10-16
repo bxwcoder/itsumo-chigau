@@ -16,7 +16,11 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import org.json.JSONObject;
@@ -37,6 +41,7 @@ public class CalendarPlugin extends Plugin {
     private static final String PREFS = "itsumo_calendar";
     private static final String KEY_EVENT_IDS = "event_ids";
     private static final int EVENT_MINUTES = 15;
+    private static final int HISTORY_DAYS = 7;
 
     private boolean hasPermission() {
         return getPermissionState("calendar") == PermissionState.GRANTED;
@@ -74,7 +79,9 @@ public class CalendarPlugin extends Plugin {
     }
 
     /**
-     * 前回書き込んだ予定を全部消して、渡された予定を書き込み直す。
+     * 渡された予定と、すでに書き込んである予定を見比べて、違うところだけ直す。
+     * 変わっていない予定はそのまま残すので、スマホ側の通知の予約が安定する。
+     * 時刻を過ぎた予定は、通知できたかを後で確かめられるよう 7 日間残す。
      * events: [{ title, description, start(ミリ秒) }]
      * calendarId: 書き込み先（省略時は専用カレンダー）
      */
@@ -88,16 +95,39 @@ public class CalendarPlugin extends Plugin {
             long ownId = ensureOwnCalendar();
             Long requested = call.getLong("calendarId");
             long calendarId = requested != null && requested > 0 ? requested : ownId;
+            long now = System.currentTimeMillis();
 
-            deleteWrittenEvents(ownId);
-
+            // 書き込みたい予定
             JSArray events = call.getArray("events", new JSArray());
-            Set<String> ids = new HashSet<>();
-            String tz = TimeZone.getDefault().getID();
+            Map<String, JSONObject> wanted = new LinkedHashMap<>();
             for (int i = 0; i < events.length(); i++) {
                 JSONObject e = events.getJSONObject(i);
-                long start = e.getLong("start");
+                wanted.put(key(calendarId, e.getLong("start"), e.getString("title"), e.optString("description", "")), e);
+            }
 
+            // すでにある予定のうち、同じものは残し、いらないものは消す
+            Set<String> ids = new HashSet<>();
+            int kept = 0;
+            int removed = 0;
+            for (Written w : findWritten(ownId)) {
+                String k = key(w.calendarId, w.start, w.title, w.description);
+                if (wanted.containsKey(k)) {
+                    wanted.remove(k);
+                    ids.add(String.valueOf(w.id));
+                    kept++;
+                } else if (w.start > now || w.start < now - HISTORY_DAYS * 86_400_000L) {
+                    deleteEvent(w, ownId);
+                    removed++;
+                } else {
+                    ids.add(String.valueOf(w.id)); // 時刻を過ぎた予定は記録として残す
+                }
+            }
+
+            // 新しい予定だけ書き込む
+            String tz = TimeZone.getDefault().getID();
+            int added = 0;
+            for (JSONObject e : wanted.values()) {
+                long start = e.getLong("start");
                 ContentValues ev = new ContentValues();
                 ev.put(CalendarContract.Events.CALENDAR_ID, calendarId);
                 ev.put(CalendarContract.Events.TITLE, e.getString("title"));
@@ -118,16 +148,123 @@ public class CalendarPlugin extends Plugin {
                 rem.put(CalendarContract.Reminders.MINUTES, 0);
                 rem.put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT);
                 resolver().insert(CalendarContract.Reminders.CONTENT_URI, rem);
+                added++;
             }
             prefs().edit().putStringSet(KEY_EVENT_IDS, ids).apply();
 
             JSObject result = new JSObject();
-            result.put("count", ids.size());
+            result.put("count", kept + added);
+            result.put("added", added);
+            result.put("removed", removed);
             result.put("calendarId", calendarId);
             call.resolve(result);
         } catch (Exception ex) {
             call.reject("カレンダーへの書き込みに失敗しました: " + ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * 書き込んだ予定のうち from〜to のものと、スマホがそれを通知したかどうか。
+     * state: fired（通知した）/ dismissed（通知して閉じた）/ scheduled（まだ）/ none（通知の予約がない）
+     */
+    @PluginMethod
+    public void listRecent(PluginCall call) {
+        if (!hasPermission()) {
+            call.reject("カレンダーへのアクセスが許可されていません", "NO_PERMISSION");
+            return;
+        }
+        long from = call.getLong("from", 0L);
+        long to = call.getLong("to", Long.MAX_VALUE);
+        JSArray list = new JSArray();
+        for (Written w : findWritten(findOwnCalendar())) {
+            if (w.start < from || w.start > to) continue;
+            JSObject item = new JSObject();
+            item.put("title", w.title);
+            item.put("start", w.start);
+            item.put("state", alertState(w.id));
+            list.put(item);
+        }
+        JSObject result = new JSObject();
+        result.put("events", list);
+        call.resolve(result);
+    }
+
+    private String alertState(long eventId) {
+        String state = "none";
+        try (
+            Cursor c = resolver().query(
+                CalendarContract.CalendarAlerts.CONTENT_URI,
+                new String[] { CalendarContract.CalendarAlerts.STATE },
+                CalendarContract.CalendarAlerts.EVENT_ID + " = ?",
+                new String[] { String.valueOf(eventId) },
+                null
+            )
+        ) {
+            while (c != null && c.moveToNext()) {
+                int s = c.getInt(0);
+                if (s == CalendarContract.CalendarAlerts.STATE_FIRED) return "fired";
+                if (s == CalendarContract.CalendarAlerts.STATE_DISMISSED) state = "dismissed";
+                else if (s == CalendarContract.CalendarAlerts.STATE_SCHEDULED && !"dismissed".equals(state)) state = "scheduled";
+            }
+        } catch (Exception ignored) {
+            // 機種によっては読めないことがある
+        }
+        return state;
+    }
+
+    private static String key(long calendarId, long start, String title, String description) {
+        return calendarId + "|" + start + "|" + title + "|" + description;
+    }
+
+    private static class Written {
+        long id;
+        long calendarId;
+        long start;
+        String title;
+        String description;
+    }
+
+    /** このアプリが書き込んだ予定（専用カレンダーの中身と、他のカレンダーに書いた分） */
+    private List<Written> findWritten(long ownId) {
+        Set<String> stored = prefs().getStringSet(KEY_EVENT_IDS, new HashSet<>());
+        StringBuilder sel = new StringBuilder("(" + CalendarContract.Events.CALENDAR_ID + " = ?");
+        List<String> args = new ArrayList<>();
+        args.add(String.valueOf(ownId));
+        if (!stored.isEmpty()) {
+            sel.append(" OR ").append(CalendarContract.Events._ID).append(" IN (");
+            int i = 0;
+            for (String id : stored) {
+                sel.append(i++ == 0 ? "?" : ",?");
+                args.add(id);
+            }
+            sel.append(")");
+        }
+        sel.append(") AND ").append(CalendarContract.Events.DELETED).append(" = 0");
+        String[] projection = {
+            CalendarContract.Events._ID,
+            CalendarContract.Events.CALENDAR_ID,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DESCRIPTION,
+        };
+        List<Written> list = new ArrayList<>();
+        try (Cursor c = resolver().query(CalendarContract.Events.CONTENT_URI, projection, sel.toString(), args.toArray(new String[0]), CalendarContract.Events.DTSTART)) {
+            while (c != null && c.moveToNext()) {
+                Written w = new Written();
+                w.id = c.getLong(0);
+                w.calendarId = c.getLong(1);
+                w.start = c.getLong(2);
+                w.title = c.getString(3) == null ? "" : c.getString(3);
+                w.description = c.getString(4) == null ? "" : c.getString(4);
+                list.add(w);
+            }
+        }
+        return list;
+    }
+
+    private void deleteEvent(Written w, long ownId) {
+        Uri base = w.calendarId == ownId ? asSyncAdapter(CalendarContract.Events.CONTENT_URI) : CalendarContract.Events.CONTENT_URI;
+        resolver().delete(ContentUris.withAppendedId(base, w.id), null, null);
     }
 
     /** このアプリが書き込んだ予定を全部消す */

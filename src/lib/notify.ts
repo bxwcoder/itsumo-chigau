@@ -6,7 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { planAll, type PlannedNotification } from '../core/schedule';
 import type { AppState } from '../core/types';
-import { ItsumoCalendar, type CalendarEvent, type CalendarInfo } from './calendar';
+import { ItsumoCalendar, type CalendarEvent, type CalendarInfo, type WrittenEvent } from './calendar';
 
 const CHANNEL_ID = 'changes';
 const TEST_ID = 1;
@@ -236,4 +236,12 @@ export const onNotificationTapped = (handler: (kind: PlannedNotification['kind']
   return () => {
     sub.then((h) => h.remove());
   };
+};
+
+/** カレンダーに書き込んだ最近の予定と、スマホがそれを通知したかの記録（確認用） */
+export const listRecentDeliveries = async (days = 7): Promise<WrittenEvent[]> => {
+  if (!isNativeApp() || (await getCalendarPermission()) !== 'granted') return [];
+  const now = Date.now();
+  const { events } = await ItsumoCalendar.listRecent({ from: now - days * 86_400_000, to: now });
+  return events.sort((a, b) => b.start - a.start);
 };

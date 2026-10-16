@@ -19,8 +19,16 @@ interface ItsumoCalendarPlugin {
   checkPermissions(): Promise<{ calendar: PermissionState }>;
   requestPermissions(): Promise<{ calendar: PermissionState }>;
   listCalendars(): Promise<{ calendars: CalendarInfo[] }>;
-  sync(options: { events: CalendarEvent[]; calendarId?: number }): Promise<{ count: number; calendarId: number }>;
+  sync(options: { events: CalendarEvent[]; calendarId?: number }): Promise<{ count: number; added: number; removed: number; calendarId: number }>;
   clear(): Promise<void>;
+  listRecent(options: { from: number; to: number }): Promise<{ events: WrittenEvent[] }>;
+}
+
+export interface WrittenEvent {
+  title: string;
+  start: number;
+  /** fired: 通知した / dismissed: 通知して閉じた / scheduled: まだ / none: 通知の予約がない */
+  state: 'fired' | 'dismissed' | 'scheduled' | 'none';
 }
 
 export const ItsumoCalendar = registerPlugin<ItsumoCalendarPlugin>('ItsumoCalendar');

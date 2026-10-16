@@ -8,6 +8,7 @@ import {
   getPermission,
   isNativeApp,
   listCalendars,
+  listRecentDeliveries,
   openExactAlarmSetting,
   requestCalendarPermission,
   requestPermission,
@@ -16,7 +17,7 @@ import {
   type PermissionState,
   type SyncResult,
 } from '../lib/notify';
-import type { CalendarInfo } from '../lib/calendar';
+import type { CalendarInfo, WrittenEvent } from '../lib/calendar';
 import { getDeviceInfo, getReminderApps, guideFor, openAppSettings, type DeviceInfo } from '../lib/device';
 import { Card, SectionTitle, SubButton, fieldClass } from './common';
 
@@ -99,6 +100,48 @@ const CheckRow: React.FC<{
     {enabled && <div className="flex flex-wrap items-center gap-2 mt-2">{children}</div>}
   </div>
 );
+
+const DELIVERY_LABEL: Record<WrittenEvent['state'], [string, string]> = {
+  fired: ['✓ カレンダーアプリが通知しました', 'text-ok'],
+  dismissed: ['✓ 通知して、閉じられました', 'text-ok'],
+  scheduled: ['通知した記録がありません', 'text-alert'],
+  none: ['通知の予約が見つかりません', 'text-alert'],
+};
+
+/** 過去 7 日に書き込んだ予定が、実際に通知されたか（スマホの記録を読み返す） */
+const RecentDeliveries: React.FC<{ refreshKey: unknown }> = ({ refreshKey }) => {
+  const [events, setEvents] = useState<WrittenEvent[] | null>(null);
+  useEffect(() => {
+    listRecentDeliveries()
+      .then(setEvents)
+      .catch(() => setEvents([]));
+  }, [refreshKey]);
+  if (events === null) return null;
+  return (
+    <Card className="space-y-2">
+      {events.length === 0 ? (
+        <p className="text-ink-2">この7日間に時刻を過ぎたお知らせはありません。</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {events.map((e) => {
+            const [label, color] = DELIVERY_LABEL[e.state];
+            return (
+              <li key={`${e.start}|${e.title}`} className="py-2">
+                <span className="font-semibold block">{formatAt(new Date(e.start))}</span>
+                <span className="text-sm text-ink-2 block">{e.title}</span>
+                <span className={`text-sm font-semibold ${color}`}>{label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="text-xs text-ink-2">
+        「通知した記録がありません」が続くときは、カレンダーアプリが省電力機能で止められている可能性があります。下の「通知が届かないとき」を確認してください。
+        （カレンダーアプリによっては、通知しても記録を残さないことがあります）
+      </p>
+    </Card>
+  );
+};
 
 const formatAt = (d: Date) =>
   d.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
@@ -404,6 +447,13 @@ export const Settings: React.FC<Props> = ({ state, syncResult, onSyncResult, upd
               お知らせ時刻をすでに過ぎた分は予約しません。今日のお知らせを試すときは、予定を変更してから時刻を数分後にしてください。
             </p>
           </Card>
+        </>
+      )}
+
+      {isNativeApp() && useCalendar && !syncResult.fallback && (
+        <>
+          <SectionTitle>最近のお知らせ（届いたかの記録）</SectionTitle>
+          <RecentDeliveries refreshKey={syncResult} />
         </>
       )}
 
