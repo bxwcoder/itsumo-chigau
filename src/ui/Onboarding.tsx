@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { applyTemplate, buildDemo, TEMPLATES, templateItems, type TemplateId } from '../core/templates';
 import type { AppState, DateStr } from '../core/types';
 import {
@@ -10,6 +10,7 @@ import {
   type PermissionState,
 } from '../lib/notify';
 import { Icon } from './icons';
+import { getDeviceInfo, guideFor, needsAutostart, openAppSettings, type DeviceInfo } from '../lib/device';
 
 interface Props {
   state: AppState;
@@ -55,11 +56,19 @@ export const Onboarding: React.FC<Props> = ({ state, today, onFinish }) => {
   const [calendarResult, setCalendarResult] = useState<PermissionState | null>(null);
   const [appResult, setAppResult] = useState<PermissionState | null>(null);
   const [testSent, setTestSent] = useState(false);
+  const [method, setMethod] = useState<AppState['settings']['notifyMethod']>('app');
+  const [device, setDevice] = useState<DeviceInfo | null>(null);
+  useEffect(() => {
+    getDeviceInfo().then(setDevice).catch(() => undefined);
+  }, []);
 
   const items = templateItems(templateId, hospital);
   const draft = useMemo(
-    () => ({ ...applyTemplate(state, templateId, [...selected], hospital, today), onboarded: true }),
-    [state, templateId, selected, hospital, today],
+    () => {
+      const next = applyTemplate(state, templateId, [...selected], hospital, today);
+      return { ...next, settings: { ...next.settings, notifyMethod: method }, onboarded: true };
+    },
+    [state, templateId, selected, hospital, today, method],
   );
   const demo = useMemo(() => buildDemo(draft, today), [draft, today]);
 
@@ -92,18 +101,24 @@ export const Onboarding: React.FC<Props> = ({ state, today, onFinish }) => {
   const go = (s: Step) => setStep(s);
   const index = STEPS.indexOf(step);
 
+  const askApp = async () => setAppResult(await requestPermission());
+
+  // 通知を許可しない人のための予備：カレンダーで知らせる
   const askCalendar = async () => {
     const result = await requestCalendarPermission();
     setCalendarResult(result);
-    // カレンダーがだめなら、アプリの通知で代わりに知らせる
-    if (result !== 'granted') setAppResult(await requestPermission());
+    if (result === 'granted') setMethod('calendar');
   };
 
   const sendTest = async () => {
-    if (calendarResult === 'granted') await sendCalendarTest(draft);
+    if (method === 'calendar') await sendCalendarTest(draft);
     else await sendTestNotification(120);
     setTestSent(true);
   };
+
+  const autostart = needsAutostart(device?.maker);
+  const guide = guideFor(device?.maker);
+  const ready = method === 'calendar' ? calendarResult === 'granted' : appResult === 'granted';
 
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col pt-safe pb-safe">
@@ -195,34 +210,60 @@ export const Onboarding: React.FC<Props> = ({ state, today, onFinish }) => {
           <div className="flex-1">
             <h1 className="text-2xl font-bold">お知らせの準備</h1>
             <div className="mt-4 rounded-3xl bg-surface border border-line p-5 space-y-3 leading-relaxed">
-              <p>
-                確実にお知らせを届けるため、<span className="font-bold">このアプリ専用のカレンダー</span>を作り、いつもと違う日だけ予定を書き込みます。
-              </p>
-              <p>予定の時刻になると、お使いのカレンダーアプリ（Google カレンダーなど）から通知が届きます。アプリを閉じていても届きます。</p>
+              <p>いつもと違う日だけ、このアプリから通知でお知らせします。ふだんの日は通知しません。</p>
               <p className="text-sm text-ink-2">あなたの予定を外部に送ることはありません。データはこのスマホの中だけに保存します。</p>
             </div>
 
-            {calendarResult === null ? (
-              <button onClick={askCalendar} className="mt-5 w-full rounded-full bg-primary text-on-primary py-4 text-lg font-bold">
-                カレンダーを使って知らせる
+            {appResult === null && method === 'app' && (
+              <button onClick={askApp} className="mt-5 w-full rounded-full bg-primary text-on-primary py-4 text-lg font-bold">
+                通知を許可する
               </button>
-            ) : (
-              <div className="mt-5 space-y-2">
-                <p className={`font-semibold ${calendarResult === 'granted' ? 'text-ok' : 'text-ink-2'}`}>カレンダー：{PERMISSION_RESULT[calendarResult]}</p>
-                {appResult && calendarResult !== 'granted' && (
-                  <p className={`font-semibold ${appResult === 'granted' ? 'text-ok' : 'text-ink-2'}`}>
-                    代わりにアプリの通知で知らせます：{PERMISSION_RESULT[appResult]}
-                  </p>
-                )}
-                {isNativeApp() && (calendarResult === 'granted' || appResult === 'granted') && (
-                  <button
-                    onClick={sendTest}
-                    disabled={testSent}
-                    className="w-full rounded-full border border-line bg-surface text-primary py-3 font-semibold disabled:text-ink-2"
-                  >
-                    {testSent ? '2分後にテストのお知らせが届きます' : '試しに2分後にお知らせする'}
-                  </button>
-                )}
+            )}
+            {appResult !== null && method === 'app' && (
+              <p className={`mt-5 font-semibold ${appResult === 'granted' ? 'text-ok' : 'text-ink-2'}`}>通知：{PERMISSION_RESULT[appResult]}</p>
+            )}
+
+            {method === 'app' && appResult === 'granted' && autostart && (
+              <div className="mt-4 rounded-3xl border border-alert-line bg-alert-soft p-5 space-y-3">
+                <p className="font-bold">{guide.name} のスマホは、あと1つだけ設定が必要です</p>
+                <p className="text-sm leading-relaxed">
+                  {guide.name} のスマホは、電池を長持ちさせるため、閉じたアプリの通知を止めてしまいます。次の設定を1回だけしてください。
+                </p>
+                <ol className="list-decimal pl-5 space-y-1 text-sm">
+                  {guide.steps.slice(0, 2).map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                <button onClick={() => openAppSettings()} className="w-full rounded-full bg-primary text-on-primary py-3 font-bold">
+                  設定画面を開く
+                </button>
+              </div>
+            )}
+
+            {appResult === 'denied' && method === 'app' && (
+              <div className="mt-4 space-y-2">
+                <p className="text-sm text-ink-2">通知を許可しない場合は、スマホのカレンダーを使って知らせることもできます。</p>
+                <button onClick={askCalendar} className="w-full rounded-full border border-line bg-surface text-primary py-3 font-semibold">
+                  カレンダーで知らせる
+                </button>
+              </div>
+            )}
+            {method === 'calendar' && calendarResult && (
+              <p className={`mt-4 font-semibold ${calendarResult === 'granted' ? 'text-ok' : 'text-ink-2'}`}>
+                カレンダー：{PERMISSION_RESULT[calendarResult]}
+              </p>
+            )}
+
+            {isNativeApp() && ready && (
+              <div className="mt-4 space-y-2">
+                <button
+                  onClick={sendTest}
+                  disabled={testSent}
+                  className="w-full rounded-full border border-line bg-surface text-primary py-3 font-semibold disabled:text-ink-2"
+                >
+                  {testSent ? '2分後にテストのお知らせが届きます' : '試しに2分後にお知らせする'}
+                </button>
+                {testSent && <p className="text-sm text-ink-2">アプリを閉じて（はじいて消してもOK）、届くか確かめてください。</p>}
               </div>
             )}
           </div>
@@ -259,7 +300,7 @@ export const Onboarding: React.FC<Props> = ({ state, today, onFinish }) => {
               }}
               className="flex-1 rounded-full bg-primary text-on-primary py-4 text-lg font-bold"
             >
-              {step === 'welcome' ? 'はじめる' : step === 'notify' && calendarResult === null ? 'あとで設定する' : '次へ'}
+              {step === 'welcome' ? 'はじめる' : step === 'notify' && !ready ? 'あとで設定する' : '次へ'}
             </button>
           )}
         </div>

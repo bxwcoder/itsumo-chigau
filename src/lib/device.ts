@@ -24,7 +24,8 @@ export const getDeviceInfo = async (): Promise<DeviceInfo | null> => {
 export const getReminderApps = async () => {
   if (!Capacitor.isNativePlatform()) return [];
   const { apps } = await ItsumoDevice.getReminderApps();
-  return apps.filter((a) => a.packageName !== 'com.bxwcoder.itsumochigau');
+  // このアプリ自身と、カレンダーのデータを保管するだけの裏方（通知は出さない）は除く
+  return apps.filter((a) => a.packageName !== 'com.bxwcoder.itsumochigau' && !a.packageName.includes('providers.calendar'));
 };
 
 export const openAppSettings = (packageName?: string) =>
@@ -95,3 +96,7 @@ const DEFAULT_GUIDE: MakerGuide = {
 
 export const guideFor = (maker: string | undefined): MakerGuide =>
   GUIDES.find(([re]) => maker && re.test(maker))?.[1] ?? DEFAULT_GUIDE;
+
+/** アプリを閉じると通知を止めやすく、「自動起動を許可」が必要な機種 */
+export const needsAutostart = (maker: string | undefined): boolean =>
+  !!maker && /oppo|realme|oneplus|xiaomi|redmi|poco|vivo|huawei|honor/.test(maker);

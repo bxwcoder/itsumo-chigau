@@ -34,7 +34,7 @@ export const createDefaultState = (): AppState => ({
     dayBeforeTime: '21:00',
     weekStartsOn: 1,
     notificationsEnabled: true,
-    notifyMethod: 'calendar',
+    notifyMethod: 'app',
     calendarId: 0,
     checkReminders: {
       daily: { enabled: false, time: '20:00' },
